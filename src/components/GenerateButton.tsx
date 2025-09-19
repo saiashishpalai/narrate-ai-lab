@@ -31,7 +31,7 @@ export const GenerateButton = ({ onClick, isGenerating, disabled }: GenerateButt
         ) : (
           <>
             <Wand2 className="w-6 h-6 mr-3" />
-            Generate Voice Audio
+            Generate Audio
           </>
         )}
       </Button>

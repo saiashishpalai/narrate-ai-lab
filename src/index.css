@@ -20,14 +20,14 @@
     --popover: 240 8% 8%;
     --popover-foreground: 0 0% 95%;
 
-    /* AI-inspired accent colors */
-    --primary: 189 100% 60%;
+    /* AI-inspired accent colors - Enhanced for better visibility */
+    --primary: 189 100% 70%;
     --primary-foreground: 240 10% 3.9%;
-    --primary-glow: 189 100% 75%;
+    --primary-glow: 189 100% 85%;
 
-    --secondary: 270 50% 65%;
+    --secondary: 270 60% 75%;
     --secondary-foreground: 0 0% 98%;
-    --secondary-glow: 270 50% 80%;
+    --secondary-glow: 270 60% 90%;
 
     --muted: 240 6% 18%;
     --muted-foreground: 240 5% 64.9%;

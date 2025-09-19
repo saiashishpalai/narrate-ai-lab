@@ -33,12 +33,12 @@ const Index = () => {
     <div className="min-h-screen bg-gradient-to-br from-background via-background-secondary to-background">
       <div className="container mx-auto px-6 py-12">
         {/* Header */}
-        <header className="text-center mb-16 animate-fade-up">
-          <h1 className="text-5xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent mb-4">
+        <header className="text-center mb-16 animate-fade-up pt-4">
+          <h1 className="text-5xl md:text-6xl font-bold bg-gradient-to-r from-primary-glow to-secondary-glow bg-clip-text text-transparent mb-4 leading-tight">
             Voice Cloning Studio
           </h1>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            Upload your voice sample and story text to create AI-generated audio in your unique voice
+            Turn your storybooks into audio in your own voice.
           </p>
         </header>
 
@@ -75,7 +75,7 @@ const Index = () => {
 
         {/* Footer */}
         <footer className="text-center mt-20 text-muted-foreground">
-          <p>Built with modern AI technology - Portfolio demo by [Your Name]</p>
+          <p className="text-sm">Built using modern AI tech stacks — A Portfolio MVP by Sai Ashish Palai</p>
         </footer>
       </div>
     </div>
