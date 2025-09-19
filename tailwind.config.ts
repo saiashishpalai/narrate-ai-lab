@@ -18,14 +18,17 @@ export default {
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
         background: "hsl(var(--background))",
+        "background-secondary": "hsl(var(--background-secondary))",
         foreground: "hsl(var(--foreground))",
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
+          glow: "hsl(var(--primary-glow))",
         },
         secondary: {
           DEFAULT: "hsl(var(--secondary))",
           foreground: "hsl(var(--secondary-foreground))",
+          glow: "hsl(var(--secondary-glow))",
         },
         destructive: {
           DEFAULT: "hsl(var(--destructive))",
@@ -46,6 +49,22 @@ export default {
         card: {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
+          glass: "hsl(var(--card-glass))",
+          border: "hsl(var(--card-border))",
+        },
+        // Upload zone colors
+        upload: {
+          border: "hsl(var(--upload-border))",
+          hover: "hsl(var(--upload-hover))",
+          active: "hsl(var(--upload-active))",
+        },
+        // Audio player colors
+        player: {
+          bg: "hsl(var(--player-bg))",
+        },
+        waveform: {
+          primary: "hsl(var(--waveform-primary))",
+          secondary: "hsl(var(--waveform-secondary))",
         },
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
