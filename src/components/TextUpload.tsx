@@ -3,31 +3,45 @@ import { FileText, Upload, Type } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import supabase from "@/lib/SupabaseClient";
 
 interface TextUploadProps {
   onTextChange: (text: string) => void;
   text: string;
+  sessionId?: number | null; // optional - parent will pass this when available
 }
-
-export const TextUpload = ({ onTextChange, text }: TextUploadProps) => {
+export const TextUpload = ({
+  onTextChange,
+  text,
+  sessionId,
+}: TextUploadProps) => {
   const [activeTab, setActiveTab] = useState<"type" | "upload">("type");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragOver, setIsDragOver] = useState(false);
 
   const handleFileSelect = async (file: File) => {
-    if (file.type === 'text/plain' || file.type === 'application/pdf') {
+    if (file.type === "text/plain" || file.type === "application/pdf") {
       try {
         let content = "";
-        
-        if (file.type === 'text/plain') {
+
+        if (file.type === "text/plain") {
           content = await file.text();
         } else {
           // For PDF, we'd need a proper parser in a real app
-          toast.error("PDF parsing not implemented in this demo. Please copy and paste your text.");
+          toast.error(
+            "PDF parsing not implemented in this demo. Please copy and paste your text."
+          );
           return;
         }
-        
+
         onTextChange(content);
+        // If we already have a sessionId (voice was uploaded), save the text to DB
+        if (sessionId) {
+          await handleTextUpload(content, sessionId);
+        } else {
+          // sessionId not available yet (user may upload voice later).
+          // We'll still keep text in UI (parent state), and voice upload can update DB later.
+        }
         toast.success("Text file uploaded successfully!");
         setActiveTab("type"); // Switch to text view
       } catch (error) {
@@ -53,6 +67,16 @@ export const TextUpload = ({ onTextChange, text }: TextUploadProps) => {
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(false);
+  };
+  const handleTextUpload = async (text: string, sessionId: number) => {
+    const { error } = await supabase
+      .from("sessions")
+      .update({ story_text: text })
+      .eq("id", sessionId);
+
+    if (error) {
+      console.error("Text upload error:", error.message);
+    }
   };
 
   return (
@@ -86,6 +110,13 @@ export const TextUpload = ({ onTextChange, text }: TextUploadProps) => {
             placeholder="Paste or type your story here... This text will be converted to audio using your voice sample."
             value={text}
             onChange={(e) => onTextChange(e.target.value)}
+            onBlur={(e) => {
+              // Save to DB only if we already have a sessionId
+              if (sessionId) {
+                const newText = (e.currentTarget as HTMLTextAreaElement).value;
+                handleTextUpload(newText, sessionId);
+              }
+            }}
             className="min-h-[200px] bg-background-secondary border-border resize-none"
           />
           <div className="flex justify-between items-center text-sm text-muted-foreground">
@@ -96,8 +127,8 @@ export const TextUpload = ({ onTextChange, text }: TextUploadProps) => {
       ) : (
         <div
           className={`border-2 border-dashed rounded-xl p-8 text-center transition-all duration-300 ${
-            isDragOver 
-              ? "border-primary bg-upload-active" 
+            isDragOver
+              ? "border-primary bg-upload-active"
               : "border-upload-border hover:border-upload-border hover:bg-upload-hover"
           }`}
           onDrop={handleDrop}
@@ -108,7 +139,9 @@ export const TextUpload = ({ onTextChange, text }: TextUploadProps) => {
             ref={fileInputRef}
             type="file"
             accept=".txt,.pdf"
-            onChange={(e) => e.target.files?.[0] && handleFileSelect(e.target.files[0])}
+            onChange={(e) =>
+              e.target.files?.[0] && handleFileSelect(e.target.files[0])
+            }
             className="hidden"
           />
 
@@ -117,7 +150,9 @@ export const TextUpload = ({ onTextChange, text }: TextUploadProps) => {
               <FileText className="w-8 h-8 text-muted-foreground" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-foreground mb-2">Upload Text File</h3>
+              <h3 className="text-lg font-semibold text-foreground mb-2">
+                Upload Text File
+              </h3>
               <p className="text-muted-foreground text-sm mb-4">
                 Drop your text file here or click to browse
               </p>

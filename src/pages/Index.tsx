@@ -10,6 +10,7 @@ const Index = () => {
   const [storyText, setStoryText] = useState<string>("");
   const [generatedAudio, setGeneratedAudio] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [sessionId, setSessionId] = useState<number | null>(null);
 
   const handleGenerate = async () => {
     if (!voiceFile || !storyText.trim()) {
@@ -47,8 +48,16 @@ const Index = () => {
         <div className="max-w-4xl mx-auto space-y-8">
           {/* Upload Section */}
           <div className="grid md:grid-cols-2 gap-8">
-            <VoiceUpload onFileSelect={setVoiceFile} selectedFile={voiceFile} />
-            <TextUpload onTextChange={setStoryText} text={storyText} />
+            <VoiceUpload
+              onFileSelect={setVoiceFile}
+              selectedFile={voiceFile}
+              onSessionCreated={setSessionId}
+            />{" "}
+            <TextUpload
+              onTextChange={setStoryText}
+              text={storyText}
+              sessionId={sessionId}
+            />
           </div>
 
           {/* Generate Button */}
