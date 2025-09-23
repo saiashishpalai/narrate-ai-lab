@@ -32,33 +32,6 @@ export const VoiceUpload = ({
       toast.error("Please upload an audio file (MP3, WAV, etc.)");
     }
   };
-  const handleFileUpload = async (file: File) => {
-    // 1. Upload to storage
-    const { data, error } = await supabase.storage
-      .from("voices")
-      .upload(`voices/${Date.now()}-${file.name}`, file);
-
-    if (error) {
-      console.error("Upload error:", error.message);
-      return;
-    }
-
-    // 2. Insert into sessions and return id
-    const { data: insertData, error: insertError } = await supabase
-      .from("sessions")
-      .insert([{ voice_path: data.path, status: "uploaded" }])
-      .select("id")
-      .single();
-
-    if (insertError) {
-      console.error("DB insert error:", insertError);
-    } else if (insertData && insertData.id) {
-      // Supabase may return id as string (int8/bigint) or number
-      const newSessionId = typeof insertData.id === "string" ? parseInt(insertData.id, 10) : insertData.id;
-      // If parent expects string, remove parseInt above and pass as string
-      if (onSessionCreated) onSessionCreated(newSessionId);
-    }
-  };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
