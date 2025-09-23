@@ -5,3 +5,4 @@ const supabaseAnonKey = "YeyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhY
 
 const supabase = createClient(supabaseUrl, supabaseAnonKey)
 export default supabase
+// export const supabase = createClient(supabaseUrl, supabaseAnonKey) --- IGNORE ---
