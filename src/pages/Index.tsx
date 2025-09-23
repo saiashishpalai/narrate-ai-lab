@@ -4,30 +4,143 @@ import { TextUpload } from "@/components/TextUpload";
 import { AudioPlayer } from "@/components/AudioPlayer";
 import { GenerateButton } from "@/components/GenerateButton";
 import { toast } from "sonner";
+import supabase from "@/lib/SupabaseClient";
 
 const Index = () => {
   const [voiceFile, setVoiceFile] = useState<File | null>(null);
+  const [voiceUrl, setVoiceUrl] = useState<string>("");
   const [storyText, setStoryText] = useState<string>("");
   const [generatedAudio, setGeneratedAudio] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [sessionId, setSessionId] = useState<number | null>(null);
+
+  // Upload voice file to Supabase Storage and store public URL
+  const handleVoiceFileSelect = async (file: File | null) => {
+    setVoiceFile(file);
+    setVoiceUrl("");
+    setSessionId(null);
+
+    if (!file) return;
+
+    try {
+      // FIX 1: Remove the "voices/" prefix to avoid double "voices/voices/" path
+      const filePath = `${Date.now()}-${file.name}`;
+
+      const { data, error } = await supabase.storage
+        .from("voice-samples")
+        .upload(filePath, file);
+
+      if (error) {
+        toast.error("Failed to upload voice file");
+        console.error("Upload error:", error);
+        return;
+      }
+
+      // FIX 2: Use the correct destructuring syntax for getPublicUrl
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from("voice-samples").getPublicUrl(filePath);
+
+      setVoiceUrl(publicUrl);
+
+      // FIX 3: Store the file path (not full URL) in voice_path for better data management
+      const { data: sessionData, error: sessionError } = await supabase
+        .from("sessions")
+        .insert([
+          {
+            voice_path: filePath, // Store path, not full URL
+            status: "uploaded",
+          },
+        ])
+        .select("id")
+        .single();
+
+      if (sessionError) {
+        toast.error("Failed to create session");
+        console.error("Session error:", sessionError);
+      } else if (sessionData && sessionData.id) {
+        setSessionId(
+          typeof sessionData.id === "string"
+            ? parseInt(sessionData.id, 10)
+            : sessionData.id
+        );
+        toast.success("Voice file uploaded successfully!");
+      }
+    } catch (err) {
+      toast.error("Failed to upload voice file");
+      console.error("Upload exception:", err);
+    }
+  };
 
   const handleGenerate = async () => {
-    if (!voiceFile || !storyText.trim()) {
+    if (!voiceUrl || !storyText.trim()) {
       toast.error("Please upload a voice sample and provide story text");
+      return;
+    }
+
+    if (!sessionId) {
+      toast.error("No active session found");
       return;
     }
 
     setIsGenerating(true);
 
-    // Simulate AI processing time
-    setTimeout(() => {
-      // Mock generated audio URL - in real app this would come from your AI service
-      const mockAudioUrl =
-        "https://www2.cs.uic.edu/~i101/SoundFiles/BabyElephantWalk60.wav";
-      setGeneratedAudio(mockAudioUrl);
-      setIsGenerating(false);
+    try {
+      // FIX 4: Update session status to processing
+      await supabase
+        .from("sessions")
+        .update({
+          status: "processing",
+          story_text: storyText,
+        })
+        .eq("id", sessionId);
+
+      // Use the public URL from Supabase Storage
+      const response = await fetch(
+        "https://saiashish.app.n8n.cloud/webhook-test/generate-audio",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            voiceUrl, // this is the public URL from Supabase
+            text: storyText,
+          }),
+        }
+      );
+
+      if (!response.ok) throw new Error("Failed to generate audio");
+
+      const result = await response.json();
+      const audioUrl = result.audioUrl || "";
+
+      setGeneratedAudio(audioUrl);
+
+      // FIX 5: Update session with generated audio and completion status
+      await supabase
+        .from("sessions")
+        .update({
+          generated_audio_path: audioUrl,
+          status: "completed",
+        })
+        .eq("id", sessionId);
+
       toast.success("Audio generated successfully!");
-    }, 3000);
+    } catch (err) {
+      // FIX 6: Update session status to failed on error
+      if (sessionId) {
+        await supabase
+          .from("sessions")
+          .update({ status: "failed" })
+          .eq("id", sessionId);
+      }
+
+      toast.error("Failed to generate audio");
+      console.error("Generation error:", err);
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   return (
@@ -47,8 +160,16 @@ const Index = () => {
         <div className="max-w-4xl mx-auto space-y-8">
           {/* Upload Section */}
           <div className="grid md:grid-cols-2 gap-8">
-            <VoiceUpload onFileSelect={setVoiceFile} selectedFile={voiceFile} />
-            <TextUpload onTextChange={setStoryText} text={storyText} />
+            <VoiceUpload
+              onFileSelect={handleVoiceFileSelect}
+              selectedFile={voiceFile}
+              onSessionCreated={setSessionId}
+            />
+            <TextUpload
+              onTextChange={setStoryText}
+              text={storyText}
+              sessionId={sessionId}
+            />
           </div>
 
           {/* Generate Button */}

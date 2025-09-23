@@ -2,13 +2,20 @@ import { useRef, useState } from "react";
 import { Upload, Mic, Play, Pause } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import supabase from "@/lib/SupabaseClient";
+
 
 interface VoiceUploadProps {
   onFileSelect: (file: File | null) => void;
   selectedFile: File | null;
+  onSessionCreated?: (id: number) => void; // new optional callback
 }
 
-export const VoiceUpload = ({ onFileSelect, selectedFile }: VoiceUploadProps) => {
+export const VoiceUpload = ({
+  onFileSelect,
+  selectedFile,
+  onSessionCreated,
+}: VoiceUploadProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -16,7 +23,7 @@ export const VoiceUpload = ({ onFileSelect, selectedFile }: VoiceUploadProps) =>
   const [isDragOver, setIsDragOver] = useState(false);
 
   const handleFileSelect = (file: File) => {
-    if (file.type.startsWith('audio/')) {
+    if (file.type.startsWith("audio/")) {
       onFileSelect(file);
       const url = URL.createObjectURL(file);
       setAudioUrl(url);
@@ -63,9 +70,9 @@ export const VoiceUpload = ({ onFileSelect, selectedFile }: VoiceUploadProps) =>
     <div className="upload-card p-8">
       <div
         className={`relative border-2 border-dashed rounded-xl p-8 text-center transition-all duration-300 ${
-          isDragOver 
-            ? "border-primary bg-upload-active" 
-            : selectedFile 
+          isDragOver
+            ? "border-primary bg-upload-active"
+            : selectedFile
             ? "border-primary/50 bg-upload-hover"
             : "border-upload-border hover:border-upload-border hover:bg-upload-hover"
         }`}
@@ -77,7 +84,9 @@ export const VoiceUpload = ({ onFileSelect, selectedFile }: VoiceUploadProps) =>
           ref={fileInputRef}
           type="file"
           accept="audio/*"
-          onChange={(e) => e.target.files?.[0] && handleFileSelect(e.target.files[0])}
+          onChange={(e) =>
+            e.target.files?.[0] && handleFileSelect(e.target.files[0])
+          }
           className="hidden"
         />
 
@@ -87,9 +96,13 @@ export const VoiceUpload = ({ onFileSelect, selectedFile }: VoiceUploadProps) =>
               <Mic className="w-8 h-8 text-primary" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-foreground mb-2">Voice Sample Ready</h3>
-              <p className="text-muted-foreground text-sm mb-4">{selectedFile.name}</p>
-              
+              <h3 className="text-lg font-semibold text-foreground mb-2">
+                Voice Sample Ready
+              </h3>
+              <p className="text-muted-foreground text-sm mb-4">
+                {selectedFile.name}
+              </p>
+
               {audioUrl && (
                 <div className="flex items-center justify-center gap-4">
                   <Button
@@ -98,7 +111,11 @@ export const VoiceUpload = ({ onFileSelect, selectedFile }: VoiceUploadProps) =>
                     onClick={togglePlayback}
                     className="text-primary hover:text-primary-glow"
                   >
-                    {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                    {isPlaying ? (
+                      <Pause className="w-4 h-4" />
+                    ) : (
+                      <Play className="w-4 h-4" />
+                    )}
                     {isPlaying ? "Pause" : "Preview"}
                   </Button>
                   <audio
@@ -117,7 +134,9 @@ export const VoiceUpload = ({ onFileSelect, selectedFile }: VoiceUploadProps) =>
               <Upload className="w-8 h-8 text-muted-foreground" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-foreground mb-2">Upload Voice Sample</h3>
+              <h3 className="text-lg font-semibold text-foreground mb-2">
+                Upload Voice Sample
+              </h3>
               <p className="text-muted-foreground text-sm mb-4">
                 Drop your audio file here or click to browse
               </p>

@@ -1,73 +1,46 @@
-# Welcome to your Lovable project
+Voice Cloning Studio – MVP
+Turn your storybooks into audio in your own voice.
+A modern AI-powered web app for personalized story narration!
 
-## Project info
+Voice Cloning Studio lets users upload a sample of their voice and instantly convert story text (or a PDF!) to audio that sounds just like them.
+Built as a full-stack MVP, it integrates a React (Lovable) frontend, n8n as the backend orchestrator, Supabase for file and database storage, 11Labs for neural TTS, and third-party PDF extraction.
 
-**URL**: https://lovable.dev/projects/29827ec5-93e7-4a42-8bc5-62521715afd3
+🚀 Overview
+Voice Cloning Studio lets users upload a sample of their voice and instantly convert story text (or a PDF!) to audio that sounds just like them.
 
-## How can I edit this code?
+Built as a full-stack MVP, it integrates a React (Lovable) frontend, n8n as the backend orchestrator, Supabase for file and database storage, 11Labs for neural TTS, and third-party PDF extraction.
 
-There are several ways of editing your application.
+✨ Features
+Voice Upload: Users can submit a short audio sample to clone their unique voiceprint.
+Story as Audio: Type or upload story text (or PDF!)—get audio generated in the cloned voice.
+PDF to Audio: Seamlessly extract story content from PDFs and process it end-to-end.
+Instant Feedback: Simple UI with clear feedback after every step (upload, generation, error).
+Secure & Scalable: Uses Supabase cloud storage and structured DB; workflow automation for cost-efficient scaling.
 
-**Use Lovable**
+🛠️ Tech Stack
+Frontend: React (Lovable)
+Backend Automation: n8n (workflow orchestrator)
+Voice/Audio Storage: Supabase (storage + DB)
+Text-to-Speech: 11Labs API
+PDF Extraction: PDF.co/Nanonets (or custom)
+Authentication: Supabase Auth (can integrate with OAuth)
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/29827ec5-93e7-4a42-8bc5-62521715afd3) and start prompting.
+⚙️ Architecture
+User uploads a voice sample & enters or uploads story text/PDF via the Lovable UI.
+Frontend sends files/text to n8n via a secured Webhook or API endpoint.
+n8n workflow:
+- Uploads files to Supabase.
+- Extracts text from PDFs (if needed).
+- Calls 11Labs API with text + voice reference.
+- Stores generated audio in Supabase storage.
+- Records transaction metadata in Supabase DB.
+- Frontend gets real-time feedback, allowing the user to listen or download the audio.
 
-Changes made via Lovable will be committed automatically to this repo.
+🎯 Usage
+Go to the app and upload your sample voice (MP3/WAV/M4A).
+Paste or upload your story (text or PDF).
+Click Generate Audio.
+Listen to or download your narrated story!
 
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
-
-**Edit a file directly in GitHub**
-
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/29827ec5-93e7-4a42-8bc5-62521715afd3) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+🛡️ License
+Built by Sai Ashish Palai. Powered by n8n, Supabase, and 11Labs.
