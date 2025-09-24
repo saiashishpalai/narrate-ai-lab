@@ -96,9 +96,11 @@ const Index = () => {
         .eq("id", sessionId);
 
       // Use the public URL from Supabase Storage
-      const response = await fetch(
-        "https://saiashish.app.n8n.cloud/webhook-test/generate-audio",
-        {
+      const n8nWebhookUrl =
+        import.meta.env.VITE_N8N_WEBHOOK_URL ||
+        "http://localhost:5678/webhook-test/generate-audio";
+
+      const response = await fetch(n8nWebhookUrl, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -107,8 +109,7 @@ const Index = () => {
             voiceUrl, // this is the public URL from Supabase
             text: storyText,
           }),
-        }
-      );
+        });
 
       if (!response.ok) throw new Error("Failed to generate audio");
 

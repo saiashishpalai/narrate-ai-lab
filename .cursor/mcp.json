@@ -11,6 +11,20 @@
       "env": {
         "SUPABASE_ACCESS_TOKEN": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFkdGdvbHFxcnZ0cWZrbnJncXllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgzMTg5NTksImV4cCI6MjA3Mzg5NDk1OX0.V6keMzKkrVR8gctDngFWdpa8PP0YNW7s3i3sS7PVf84"
       }
+    },
+    "n8n-mcp": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "n8n-mcp"
+      ],
+      "env": {
+        "MCP_MODE": "stdio",
+        "LOG_LEVEL": "error",
+        "DISABLE_CONSOLE_OUTPUT": "true",
+        "N8N_API_URL": "http://localhost:5678/api/v1",
+        "N8N_API_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIzZmVjZjI1Yi03NTQxLTQyNmYtODViYy0zZWYwNTFhNmI3MjUiLCJpc3MiOiJuOG4iLCJhdWQiOiJwdWJsaWMtYXBpIiwiaWF0IjoxNzU4NzIwNzMyLCJleHAiOjE3NjEyNzg0MDB9.B3yiLuLZhZh_YQMAd6dVDC6Nzxsm7adyGbi_nCAoKac"
+      }
     }
   }
 }
