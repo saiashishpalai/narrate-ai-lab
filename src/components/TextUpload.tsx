@@ -5,6 +5,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import supabase from "@/lib/SupabaseClient";
 import { Document, Page, pdfjs } from 'react-pdf';
+import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
+import 'react-pdf/dist/esm/Page/TextLayer.css';
 
 // Set up PDF.js worker
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
@@ -185,8 +187,6 @@ export const TextUpload = ({
                       pageNumber={pageNumber}
                       width={Math.min(600, window.innerWidth - 100)}
                       className="pdf-page shadow-lg"
-                      renderTextLayer={false}
-                      renderAnnotationLayer={false}
                     />
                   </Document>
                 </div>
