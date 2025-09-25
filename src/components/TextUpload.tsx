@@ -9,9 +9,10 @@ import supabase from "@/lib/SupabaseClient";
 interface TextUploadProps {
   onTextChange: (text: string) => void;
   text: string;
-  sessionId?: number | null; // optional - parent will pass this when available
-  onPdfUpload?: (file: File, pdfUrl: string) => void; // new prop for PDF handling
+  sessionId?: number | null;
+  onPdfUpload?: (file: File, pdfUrl: string) => void;
 }
+
 export const TextUpload = ({
   onTextChange,
   text,
@@ -124,6 +125,7 @@ export const TextUpload = ({
     e.preventDefault();
     setIsDragOver(false);
   };
+
   const handleTextUpload = async (text: string, sessionId: number) => {
     const { error } = await supabase
       .from("sessions")
