@@ -1,7 +1,8 @@
 import { useState, useRef } from "react";
-import { FileText, Upload, Type, ChevronLeft, ChevronRight } from "lucide-react";
+import { FileText, Upload, Type, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import supabase from "@/lib/SupabaseClient";
 import { Document, Page, pdfjs } from 'react-pdf';
@@ -14,48 +15,97 @@ pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/b
 interface TextUploadProps {
   onTextChange: (text: string) => void;
   text: string;
-  sessionId?: number | null; // optional - parent will pass this when available
+  sessionId?: number | null;
+  onPdfUpload?: (file: File, pdfUrl: string) => void;
 }
+
 export const TextUpload = ({
   onTextChange,
   text,
   sessionId,
+  onPdfUpload,
 }: TextUploadProps) => {
   const [activeTab, setActiveTab] = useState<"type" | "upload">("type");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragOver, setIsDragOver] = useState(false);
-  const [pdfFile, setPdfFile] = useState<File | null>(null);
-  const [numPages, setNumPages] = useState<number>(0);
-  const [pageNumber, setPageNumber] = useState<number>(1);
+  const [uploadedPdf, setUploadedPdf] = useState<{
+    file: File;
+    url: string;
+  } | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [pendingTab, setPendingTab] = useState<"type" | "upload" | null>(null);
+
 
   const handleFileSelect = async (file: File) => {
     if (file.type === "text/plain" || file.type === "application/pdf") {
+      // File size validation (max 1MB)
+      const maxSize = 1024 * 1024; // 1MB in bytes
+      if (file.size > maxSize) {
+        toast.error(`File size must be less than 1MB. Current size: ${(file.size / 1024 / 1024).toFixed(2)}MB`);
+        return;
+      }
+      
+      // Clear any existing PDF when selecting a new file
+      if (uploadedPdf) {
+        setUploadedPdf(null);
+      }
       try {
-        let content = "";
-
         if (file.type === "text/plain") {
-          content = await file.text();
-          setPdfFile(null); // Clear PDF preview if switching to text
+          // Handle TXT files - read content directly
+          const content = await file.text();
+          onTextChange(content);
+          
+          // If we already have a sessionId (voice was uploaded), save the text to DB
+          if (sessionId) {
+            await handleTextUpload(content, sessionId);
+          }
+          
+          toast.success("Text file uploaded successfully!");
+          // Stay in upload tab to show the ready state
         } else if (file.type === "application/pdf") {
-          setPdfFile(file);
-          setPageNumber(1);
-          // For PDF, we'll show the preview but also try to extract text
-          // For now, we'll set a placeholder text that indicates it's a PDF
-          content = `[PDF Document: ${file.name}]`;
+          // Handle PDF files - upload to Supabase Storage
+          if (!onPdfUpload) {
+            toast.error("PDF upload not configured");
+            return;
+          }
+          
+          // Set uploading state
+          setIsUploading(true);
+          
+          const filePath = `pdf-${Date.now()}-${file.name}`;
+          
+          const { data, error } = await supabase.storage
+            .from("pdf-samples")
+            .upload(filePath, file);
+          
+          if (error) {
+            toast.error("Failed to upload PDF file");
+            console.error("PDF upload error:", error);
+            setIsUploading(false);
+            return;
+          }
+          
+          // Get public URL for the PDF
+          const {
+            data: { publicUrl },
+          } = supabase.storage.from("pdf-samples").getPublicUrl(filePath);
+          
+          // Store PDF data for preview
+          setUploadedPdf({ file, url: publicUrl });
+          
+          // Call parent callback with file and URL
+          onPdfUpload(file, publicUrl);
+          
+          // Clear uploading state and show success
+          setIsUploading(false);
+          toast.success("PDF uploaded successfully! Text will be extracted during generation.");
+          // Stay in upload tab to show the ready state
         }
-
-        onTextChange(content);
-        // If we already have a sessionId (voice was uploaded), save the text to DB
-        if (sessionId) {
-          await handleTextUpload(content, sessionId);
-        } else {
-          // sessionId not available yet (user may upload voice later).
-          // We'll still keep text in UI (parent state), and voice upload can update DB later.
-        }
-        toast.success(`${file.type === "application/pdf" ? "PDF" : "Text"} file uploaded successfully!`);
-        setActiveTab("type"); // Switch to text view
       } catch (error) {
-        toast.error("Failed to read file");
+        toast.error("Failed to process file");
+        console.error("File processing error:", error);
+        setIsUploading(false);
       }
     } else {
       toast.error("Please upload a text file (.txt) or PDF");
@@ -65,19 +115,24 @@ export const TextUpload = ({
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(false);
-    const file = e.dataTransfer.files[0];
-    if (file) handleFileSelect(file);
+    if (!isUploading) {
+      const file = e.dataTransfer.files[0];
+      if (file) handleFileSelect(file);
+    }
   };
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
-    setIsDragOver(true);
+    if (!isUploading) {
+      setIsDragOver(true);
+    }
   };
 
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(false);
   };
+
   const handleTextUpload = async (text: string, sessionId: number) => {
     const { error } = await supabase
       .from("sessions")
@@ -89,16 +144,47 @@ export const TextUpload = ({
     }
   };
 
-  const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
-    setNumPages(numPages);
+  // Handle tab switching with confirmation
+  const handleTabSwitch = (newTab: "type" | "upload") => {
+    if (isUploading) return; // Don't allow switching during upload
+    
+    // Check if there's existing content that would be lost
+    const hasContent = (newTab === "type" && uploadedPdf) || (newTab === "upload" && text.trim());
+    
+    if (hasContent) {
+      setPendingTab(newTab);
+      setShowConfirmDialog(true);
+    } else {
+      setActiveTab(newTab);
+    }
   };
 
-  const goToPrevPage = () => {
-    setPageNumber(prev => Math.max(1, prev - 1));
+  // Confirm tab switch and clear content
+  const confirmTabSwitch = () => {
+    if (pendingTab) {
+      setActiveTab(pendingTab);
+      
+      // Clear the content that's being switched away from
+      if (pendingTab === "type") {
+        // Switching to type, clear uploaded PDF
+        setUploadedPdf(null);
+        if (onPdfUpload) {
+          onPdfUpload(null as any, "");
+        }
+      } else {
+        // Switching to upload, clear typed text
+        onTextChange("");
+      }
+    }
+    
+    setShowConfirmDialog(false);
+    setPendingTab(null);
   };
 
-  const goToNextPage = () => {
-    setPageNumber(prev => Math.min(numPages, prev + 1));
+  // Cancel tab switch
+  const cancelTabSwitch = () => {
+    setShowConfirmDialog(false);
+    setPendingTab(null);
   };
 
   return (
@@ -108,8 +194,9 @@ export const TextUpload = ({
         <Button
           variant={activeTab === "type" ? "default" : "ghost"}
           size="sm"
-          onClick={() => setActiveTab("type")}
+          onClick={() => handleTabSwitch("type")}
           className="flex-1 gap-2"
+          disabled={isUploading}
         >
           <Type className="w-4 h-4" />
           Type Text
@@ -117,8 +204,9 @@ export const TextUpload = ({
         <Button
           variant={activeTab === "upload" ? "default" : "ghost"}
           size="sm"
-          onClick={() => setActiveTab("upload")}
+          onClick={() => handleTabSwitch("upload")}
           className="flex-1 gap-2"
+          disabled={isUploading}
         >
           <Upload className="w-4 h-4" />
           Upload File
@@ -131,7 +219,12 @@ export const TextUpload = ({
           <Textarea
             placeholder="Paste or type your story here... This text will be converted to audio using your voice sample."
             value={text}
-            onChange={(e) => onTextChange(e.target.value)}
+            onChange={(e) => {
+              const newText = e.target.value;
+              if (newText.length <= 1500) {
+                onTextChange(newText);
+              }
+            }}
             onBlur={(e) => {
               // Save to DB only if we already have a sessionId
               if (sessionId) {
@@ -140,10 +233,17 @@ export const TextUpload = ({
               }
             }}
             className="min-h-[200px] bg-background-secondary border-border resize-none"
+            maxLength={1500}
           />
-          <div className="flex justify-between items-center text-sm text-muted-foreground">
-            <span>{text.length} characters</span>
-            <span>~{Math.ceil(text.length / 6)} words</span>
+          <div className="flex justify-between items-center text-sm">
+            <span className={`${text.length > 1500 ? 'text-red-500' : text.length > 1350 ? 'text-yellow-500' : 'text-muted-foreground'}`}>
+              {text.length}/1500 characters
+            </span>
+            {text.length > 1500 && (
+              <span className="text-red-500 text-xs">
+                Character limit exceeded
+              </span>
+            )}
           </div>
 
           {/* PDF Preview */}
@@ -196,9 +296,13 @@ export const TextUpload = ({
         </div>
       ) : (
         <div
-          className={`border-2 border-dashed rounded-xl p-8 text-center transition-all duration-300 ${
-            isDragOver
+          className={`relative border-2 border-dashed rounded-xl p-8 text-center transition-all duration-300 ${
+            isUploading
+              ? "border-primary/50 bg-upload-hover"
+              : isDragOver
               ? "border-primary bg-upload-active"
+              : uploadedPdf || text
+              ? "border-primary/50 bg-upload-hover"
               : "border-upload-border hover:border-upload-border hover:bg-upload-hover"
           }`}
           onDrop={handleDrop}
@@ -215,32 +319,93 @@ export const TextUpload = ({
             className="hidden"
           />
 
-          <div className="space-y-4">
-            <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto">
-              <FileText className="w-8 h-8 text-muted-foreground" />
+          {isUploading ? (
+            <div className="space-y-4">
+              <div className="w-16 h-16 bg-primary/20 rounded-full flex items-center justify-center mx-auto">
+                <Loader2 className="w-8 h-8 text-primary animate-spin" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-foreground mb-2">
+                  Uploading PDF
+                </h3>
+                <p className="text-muted-foreground text-sm">
+                  Please wait while your file is being uploaded...
+                </p>
+              </div>
             </div>
-            <div>
-              <h3 className="text-lg font-semibold text-foreground mb-2">
-                Upload Text File
-              </h3>
-              <p className="text-muted-foreground text-sm mb-4">
-                Drop your text file here or click to browse
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Supports TXT and PDF files with preview
-              </p>
+          ) : uploadedPdf || text ? (
+            <div className="space-y-4">
+              <div className="w-16 h-16 bg-primary/20 rounded-full flex items-center justify-center mx-auto">
+                <FileText className="w-8 h-8 text-primary" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-foreground mb-2">
+                  Text File Ready
+                </h3>
+                {uploadedPdf ? (
+                  <>
+                    <p className="text-muted-foreground text-sm mb-2">
+                      {uploadedPdf.file.name}
+                    </p>
+                    <p className="text-xs text-muted-foreground mb-4">
+                      {(uploadedPdf.file.size / 1024 / 1024).toFixed(2)} MB • PDF
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-muted-foreground text-sm mb-4">
+                    Text content ready ({text.length} characters)
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Text will be extracted during generation.
+                </p>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto">
+                <FileText className="w-8 h-8 text-muted-foreground" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-foreground mb-2">
+                  Upload Text File
+                </h3>
+                <p className="text-muted-foreground text-sm mb-4">
+                  Drop your text file here or click to browse
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Supports TXT files and PDF files (max 1MB)
+                </p>
+              </div>
+            </div>
+          )}
 
           <Button
             onClick={() => fileInputRef.current?.click()}
-            variant="default"
+            variant={uploadedPdf || text ? "secondary" : "default"}
             className="mt-4"
+            disabled={isUploading}
           >
-            Browse Files
+            {isUploading ? "Uploading..." : uploadedPdf || text ? "Replace File" : "Browse Files"}
           </Button>
         </div>
       )}
+      
+      {/* Confirmation Dialog */}
+      <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Switch Input Method</AlertDialogTitle>
+            <AlertDialogDescription>
+              Switching input method will remove your current file/text. Do you want to continue?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={cancelTabSwitch}>No, Keep Current</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmTabSwitch}>Yes, Continue</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
