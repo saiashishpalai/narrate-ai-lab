@@ -1,14 +1,10 @@
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState } from "react";
 import { VoiceUpload } from "@/components/VoiceUpload";
 import { TextUpload } from "@/components/TextUpload";
 import { AudioPlayer } from "@/components/AudioPlayer";
 import { GenerateButton } from "@/components/GenerateButton";
-import { Button } from "@/components/ui/button";
-import { LogOut, User } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
-import type { User as SupabaseUser, Session } from "@supabase/supabase-js";
+import supabase from "@/lib/SupabaseClient";
 
 const Index = () => {
   const [voiceFile, setVoiceFile] = useState<File | null>(null);
@@ -17,48 +13,6 @@ const Index = () => {
   const [generatedAudio, setGeneratedAudio] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [sessionId, setSessionId] = useState<number | null>(null);
-  const [user, setUser] = useState<SupabaseUser | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
-
-  // Authentication effect
-  useEffect(() => {
-    // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-
-      if (!session) {
-        navigate('/auth');
-      }
-    });
-
-    // Check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-      
-      if (!session) {
-        navigate('/auth');
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, [navigate]);
-
-  // Handle sign out
-  const handleSignOut = async () => {
-    try {
-      await supabase.auth.signOut();
-      toast.success("Signed out successfully");
-      navigate('/auth');
-    } catch (error: any) {
-      toast.error("Error signing out: " + error.message);
-    }
-  };
 
   // Upload voice file to Supabase Storage and store public URL
   const handleVoiceFileSelect = async (file: File | null) => {
@@ -66,7 +20,7 @@ const Index = () => {
     setVoiceUrl("");
     setSessionId(null);
 
-    if (!file || !user) return;
+    if (!file) return;
 
     try {
       // FIX 1: Remove the "voices/" prefix to avoid double "voices/voices/" path
@@ -89,14 +43,13 @@ const Index = () => {
 
       setVoiceUrl(publicUrl);
 
-      // Store the file path with user_id for security
+      // FIX 3: Store the file path (not full URL) in voice_path for better data management
       const { data: sessionData, error: sessionError } = await supabase
         .from("sessions")
         .insert([
           {
             voice_path: filePath, // Store path, not full URL
             status: "uploaded",
-            user_id: user.id,
           },
         ])
         .select("id")
@@ -118,15 +71,6 @@ const Index = () => {
       console.error("Upload exception:", err);
     }
   };
-
-  // Show loading screen while checking authentication
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-background via-background-secondary to-background flex items-center justify-center">
-        <div className="text-foreground text-lg">Loading...</div>
-      </div>
-    );
-  }
 
   const handleGenerate = async () => {
     if (!voiceUrl || !storyText.trim()) {
@@ -203,30 +147,13 @@ const Index = () => {
     <div className="min-h-screen bg-gradient-to-br from-background via-background-secondary to-background">
       <div className="container mx-auto px-6 py-12">
         {/* Header */}
-        <header className="flex items-center justify-between mb-16 animate-fade-up pt-4">
-          <div className="text-center flex-1">
-            <h1 className="text-5xl md:text-6xl font-bold bg-gradient-to-r from-primary-glow to-secondary-glow bg-clip-text text-transparent mb-4 leading-[1.7] pb-2">
-              Voice Cloning Studio
-            </h1>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Turn your storybooks into audio in your own voice.
-            </p>
-          </div>
-          <div className="flex items-center space-x-4 absolute top-6 right-6">
-            <div className="flex items-center text-muted-foreground text-sm">
-              <User className="w-4 h-4 mr-2" />
-              {user?.email}
-            </div>
-            <Button
-              onClick={handleSignOut}
-              variant="outline"
-              size="sm"
-              className="border-border text-muted-foreground hover:bg-accent"
-            >
-              <LogOut className="w-4 h-4 mr-2" />
-              Sign Out
-            </Button>
-          </div>
+        <header className="text-center mb-16 animate-fade-up pt-4">
+          <h1 className="text-5xl md:text-6xl font-bold bg-gradient-to-r from-primary-glow to-secondary-glow bg-clip-text text-transparent mb-4 leading-[1.7] pb-2">
+            Voice Cloning Studio
+          </h1>
+          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+            Turn your storybooks into audio in your own voice.
+          </p>
         </header>
 
         {/* Main Content */}

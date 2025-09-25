@@ -14,66 +14,7 @@ export type Database = {
   }
   public: {
     Tables: {
-      profiles: {
-        Row: {
-          created_at: string
-          email: string | null
-          id: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          email?: string | null
-          id?: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          email?: string | null
-          id?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
-      sessions: {
-        Row: {
-          created_at: string | null
-          generated_audio_path: string | null
-          id: number
-          pdf_path: string | null
-          status: string | null
-          story_text: string | null
-          updated_at: string | null
-          user_id: string | null
-          voice_path: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          generated_audio_path?: string | null
-          id?: number
-          pdf_path?: string | null
-          status?: string | null
-          story_text?: string | null
-          updated_at?: string | null
-          user_id?: string | null
-          voice_path?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          generated_audio_path?: string | null
-          id?: number
-          pdf_path?: string | null
-          status?: string | null
-          story_text?: string | null
-          updated_at?: string | null
-          user_id?: string | null
-          voice_path?: string | null
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Views: {
       [_ in never]: never
