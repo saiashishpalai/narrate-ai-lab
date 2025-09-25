@@ -13,6 +13,9 @@ const Index = () => {
   const [generatedAudio, setGeneratedAudio] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [sessionId, setSessionId] = useState<number | null>(null);
+  
+  // Feature flag for new flow - set to true to test new architecture
+  const USE_NEW_FLOW = false; //IMPORTANT: Set to true to test new architecture
 
   // Upload voice file to Supabase Storage and store public URL
   const handleVoiceFileSelect = async (file: File | null) => {
@@ -43,28 +46,35 @@ const Index = () => {
 
       setVoiceUrl(publicUrl);
 
-      // FIX 3: Store the file path (not full URL) in voice_path for better data management
-      const { data: sessionData, error: sessionError } = await supabase
-        .from("sessions")
-        .insert([
-          {
-            voice_path: filePath, // Store path, not full URL
-            status: "uploaded",
-          },
-        ])
-        .select("id")
-        .single();
+      // NEW FLOW: Don't create session until user clicks Generate
+      if (!USE_NEW_FLOW) {
+        // OLD FLOW: Create session immediately on voice upload
+        const { data: sessionData, error: sessionError } = await supabase
+          .from("sessions")
+          .insert([
+            {
+              voice_path: filePath, // Store path, not full URL
+              status: "uploaded",
+            },
+          ])
+          .select("id")
+          .single();
 
-      if (sessionError) {
-        toast.error("Failed to create session");
-        console.error("Session error:", sessionError);
-      } else if (sessionData && sessionData.id) {
-        setSessionId(
-          typeof sessionData.id === "string"
-            ? parseInt(sessionData.id, 10)
-            : sessionData.id
-        );
-        toast.success("Voice file uploaded successfully!");
+        if (sessionError) {
+          toast.error("Failed to create session");
+          console.error("Session error:", sessionError);
+        } else if (sessionData && sessionData.id) {
+          setSessionId(
+            typeof sessionData.id === "string"
+              ? parseInt(sessionData.id, 10)
+              : sessionData.id
+          );
+          toast.success("Voice file uploaded successfully!");
+        }
+      } else {
+        // NEW FLOW: Just store file path, no session creation yet
+        setVoiceFile(file);
+        toast.success("Voice file uploaded successfully! Now add your text and click Generate.");
       }
     } catch (err) {
       toast.error("Failed to upload voice file");
@@ -78,22 +88,47 @@ const Index = () => {
       return;
     }
 
-    if (!sessionId) {
+    if (!USE_NEW_FLOW && !sessionId) {
       toast.error("No active session found");
       return;
     }
 
     setIsGenerating(true);
-
+    let currentSessionId = sessionId;
     try {
-      // FIX 4: Update session status to processing
-      await supabase
-        .from("sessions")
-        .update({
-          status: "processing",
-          story_text: storyText,
-        })
-        .eq("id", sessionId);
+
+      if (USE_NEW_FLOW) {
+        // NEW FLOW: Create session only when generating
+        const { data: sessionData, error: sessionError } = await supabase
+          .from("sessions")
+          .insert([
+            {
+              voice_path: voiceFile?.name ? `${Date.now()}-${voiceFile.name}` : null,
+              story_text: storyText,
+              status: "processing",
+            },
+          ])
+          .select("id")
+          .single();
+
+        if (sessionError) {
+          toast.error("Failed to create session");
+          console.error("Session creation error:", sessionError);
+          return;
+        }
+
+        currentSessionId = sessionData.id;
+        setSessionId(currentSessionId);
+      } else {
+        // OLD FLOW: Update existing session status to processing
+        await supabase
+          .from("sessions")
+          .update({
+            status: "processing",
+            story_text: storyText,
+          })
+          .eq("id", sessionId);
+      }
 
       // Use the public URL from Supabase Storage
       const n8nWebhookUrl =
@@ -108,6 +143,7 @@ const Index = () => {
           body: JSON.stringify({
             voiceUrl, // this is the public URL from Supabase
             text: storyText,
+            sessionId: currentSessionId, // Include sessionId for both flows
           }),
         });
 
@@ -118,23 +154,23 @@ const Index = () => {
 
       setGeneratedAudio(audioUrl);
 
-      // FIX 5: Update session with generated audio and completion status
+      // Update session with generated audio and completion status
       await supabase
         .from("sessions")
         .update({
           generated_audio_path: audioUrl,
           status: "completed",
         })
-        .eq("id", sessionId);
+        .eq("id", currentSessionId);
 
       toast.success("Audio generated successfully!");
     } catch (err) {
-      // FIX 6: Update session status to failed on error
-      if (sessionId) {
+      // Update session status to failed on error
+      if (currentSessionId) {
         await supabase
           .from("sessions")
           .update({ status: "failed" })
-          .eq("id", sessionId);
+          .eq("id", currentSessionId);
       }
 
       toast.error("Failed to generate audio");
