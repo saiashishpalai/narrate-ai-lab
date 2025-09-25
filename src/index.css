@@ -108,6 +108,29 @@
     box-shadow: 0 20px 40px hsl(189 100% 60% / 0.1);
   }
 
+  /* PDF Viewer Styles */
+  .pdf-document {
+    @apply w-full h-full;
+  }
+
+  .pdf-page canvas {
+    @apply rounded-lg shadow-lg;
+    background: white;
+    max-width: 100%;
+    height: auto;
+  }
+
+  .pdf-preview-container {
+    background: hsl(var(--background-secondary));
+    border: 1px solid hsl(var(--border));
+    transition: var(--transition-smooth);
+  }
+
+  .pdf-preview-container:hover {
+    border-color: hsl(var(--primary) / 0.3);
+    box-shadow: 0 10px 20px hsl(var(--primary) / 0.1);
+  }
+
   /* Glow effects */
   .glow-primary {
     box-shadow: 0 0 30px hsl(var(--primary) / 0.3);

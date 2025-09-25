@@ -5,6 +5,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import supabase from "@/lib/SupabaseClient";
+import { Document, Page, pdfjs } from 'react-pdf';
+import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
+import 'react-pdf/dist/esm/Page/TextLayer.css';
+
+// Set up PDF.js worker
+pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
 
 interface TextUploadProps {
   onTextChange: (text: string) => void;
@@ -29,6 +35,7 @@ export const TextUpload = ({
   const [isUploading, setIsUploading] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [pendingTab, setPendingTab] = useState<"type" | "upload" | null>(null);
+
 
   const handleFileSelect = async (file: File) => {
     if (file.type === "text/plain" || file.type === "application/pdf") {
@@ -238,6 +245,54 @@ export const TextUpload = ({
               </span>
             )}
           </div>
+
+          {/* PDF Preview */}
+          {pdfFile && (
+            <div className="mt-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <h4 className="text-md font-medium text-foreground">PDF Preview</h4>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={goToPrevPage}
+                    disabled={pageNumber <= 1}
+                    className="h-8 w-8 p-0"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <span className="text-sm text-muted-foreground px-2">
+                    {pageNumber} of {numPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={goToNextPage}
+                    disabled={pageNumber >= numPages}
+                    className="h-8 w-8 p-0"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+              
+              <div className="pdf-preview-container border border-border rounded-lg bg-background-secondary overflow-hidden">
+                <div className="flex justify-center items-center p-4 max-h-[400px] overflow-auto">
+                  <Document
+                    file={pdfFile}
+                    onLoadSuccess={onDocumentLoadSuccess}
+                    className="pdf-document"
+                  >
+                    <Page
+                      pageNumber={pageNumber}
+                      width={Math.min(600, window.innerWidth - 100)}
+                      className="pdf-page shadow-lg"
+                    />
+                  </Document>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       ) : (
         <div
