@@ -47,11 +47,6 @@ export const GenerateButton = ({ onClick, isGenerating, disabled }: GenerateButt
         </div>
       )}
       
-      {disabled && !isGenerating && (
-        <p className="mt-3 text-sm text-muted-foreground">
-          Upload voice sample and add story text to generate
-        </p>
-      )}
     </div>
   );
 };

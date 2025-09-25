@@ -24,6 +24,13 @@ export const VoiceUpload = ({
 
   const handleFileSelect = (file: File) => {
     if (file.type.startsWith("audio/")) {
+      // File size validation (max 10MB for audio files)
+      const maxSize = 10 * 1024 * 1024; // 10MB in bytes
+      if (file.size > maxSize) {
+        toast.error(`Audio file size must be less than 10MB. Current size: ${(file.size / 1024 / 1024).toFixed(2)}MB`);
+        return;
+      }
+      
       onFileSelect(file);
       const url = URL.createObjectURL(file);
       setAudioUrl(url);
