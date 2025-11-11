@@ -199,8 +199,11 @@ const Index = () => {
   };
 
   const handleGenerate = async () => {
-    if (!voiceUrl || !storyText.trim()) {
-      toast.error("Please upload a voice sample and provide story text");
+    const hasStoryText = !!storyText.trim();
+    const hasPdfContent = !!pdfFile && !!pdfUrl;
+
+    if (!voiceUrl || (!hasStoryText && !hasPdfContent)) {
+      toast.error("Please upload a voice sample and provide story text or a PDF");
       return;
     }
 

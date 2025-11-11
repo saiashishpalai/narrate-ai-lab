@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 import fetch from "node-fetch";
 import FormData from "form-data";
 import { createClient } from "@supabase/supabase-js";
+import pdfParse from "pdf-parse-fork";
 
 dotenv.config();
 
@@ -48,9 +49,9 @@ app.get("/api/health", (_, res) => {
 app.post("/api/generate-audio", async (req, res) => {
   const { voiceUrl, text, pdfUrl, sessionId } = req.body ?? {};
 
-  if (!voiceUrl || !text) {
+  if (!voiceUrl) {
     return res.status(400).json({
-      error: "voiceUrl and text are required",
+      error: "voiceUrl is required",
     });
   }
 
@@ -61,7 +62,29 @@ app.post("/api/generate-audio", async (req, res) => {
       ? parseInt(sessionId, 10)
       : null;
 
+  let storyText: string =
+    typeof text === "string" ? text.trim() : "";
+
   try {
+    if (!storyText && pdfUrl) {
+      const pdfResponse = await fetch(pdfUrl);
+      if (!pdfResponse.ok) {
+        throw new Error(
+          `Failed to fetch PDF file. Status: ${pdfResponse.status}`
+        );
+      }
+      const pdfArrayBuffer = await pdfResponse.arrayBuffer();
+      const pdfBuffer = Buffer.from(pdfArrayBuffer);
+      const parsed = await pdfParse(pdfBuffer);
+      storyText = parsed.text?.trim() ?? "";
+    }
+
+    if (!storyText) {
+      return res.status(400).json({
+        error: "No story text provided. Please type text or upload a PDF with extractable content.",
+      });
+    }
+
     if (numericSessionId) {
       await supabase
         .from("sessions")
@@ -134,7 +157,7 @@ app.post("/api/generate-audio", async (req, res) => {
           "content-type": "application/json",
         },
         body: JSON.stringify({
-          text,
+          text: storyText,
           model_id: ELEVENLABS_MODEL_ID,
         }),
       }
@@ -175,6 +198,7 @@ app.post("/api/generate-audio", async (req, res) => {
         .update({
           generated_audio_path: audioPublicUrl,
           status: "completed",
+          story_text: storyText,
           pdf_path: pdfUrl ?? null,
         })
         .eq("id", numericSessionId);
