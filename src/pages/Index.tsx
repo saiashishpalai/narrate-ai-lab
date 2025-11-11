@@ -9,6 +9,7 @@ import supabase from "@/lib/SupabaseClient";
 const Index = () => {
   const [voiceFile, setVoiceFile] = useState<File | null>(null);
   const [voiceUrl, setVoiceUrl] = useState<string>("");
+  const [voiceStoragePath, setVoiceStoragePath] = useState<string | null>(null);
   const [isVoiceValid, setIsVoiceValid] = useState(false);
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string>("");
@@ -27,11 +28,24 @@ const Index = () => {
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true);
+      let showedToast = false;
+
+      if (voiceUploadError === "No internet connection") {
+        setVoiceUploadError(null);
+        showedToast = true;
+      }
+
+      if (textUploadError === "No internet connection") {
+        setTextUploadError(null);
+        showedToast = true;
+      }
+
       // If we have a file selected but upload failed due to no internet, show a retry message
-      if (voiceFile && voiceUploadError === "No internet connection") {
+      if (!showedToast && ((voiceFile && !isVoiceValid) || (pdfFile && !storyText.trim()))) {
         toast.info("Internet connection restored. You can try uploading again.");
       }
-      if (pdfFile && textUploadError === "No internet connection") {
+
+      if (showedToast) {
         toast.info("Internet connection restored. You can try uploading again.");
       }
     };
@@ -59,6 +73,7 @@ const Index = () => {
   const handleVoiceFileSelect = async (file: File | null) => {
     setVoiceFile(file);
     setVoiceUrl("");
+    setVoiceStoragePath(null);
     setSessionId(null);
     setIsVoiceValid(false); // Reset validation state
     setVoiceUploadError(null); // Clear previous errors
@@ -99,6 +114,7 @@ const Index = () => {
       } = supabase.storage.from("voice-samples").getPublicUrl(filePath);
 
       setVoiceUrl(publicUrl);
+      setVoiceStoragePath(filePath);
 
       // NEW FLOW: Don't create session until user clicks Generate
       if (!USE_NEW_FLOW) {
@@ -203,7 +219,7 @@ const Index = () => {
           .from("sessions")
           .insert([
             {
-              voice_path: voiceFile?.name ? `${Date.now()}-${voiceFile.name}` : null,
+              voice_path: voiceStoragePath,
               pdf_path: pdfFile?.name ? `pdf-${Date.now()}-${pdfFile.name}` : null,
               story_text: storyText,
               status: "processing",
@@ -232,26 +248,25 @@ const Index = () => {
       }
 
       // Use the public URL from Supabase Storage
-      const n8nWebhookUrl =
-        import.meta.env.VITE_N8N_WEBHOOK_URL ||
-        "http://localhost:5678/webhook-test/generate-audio";
-
-      const response = await fetch(n8nWebhookUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            voiceUrl, // this is the public URL from Supabase
-            text: storyText,
-            pdfUrl: pdfUrl || null, // PDF URL for text extraction
-            sessionId: currentSessionId, // Include sessionId for both flows
-          }),
-        });
-
-      if (!response.ok) throw new Error("Failed to generate audio");
+      const response = await fetch(`/api/generate-audio`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          voiceUrl, // this is the public URL from Supabase
+          text: storyText,
+          pdfUrl: pdfUrl || null, // PDF URL for text extraction
+          sessionId: currentSessionId, // Include sessionId for both flows
+        }),
+      });
 
       const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result?.error || "Failed to generate audio");
+      }
+
       const audioUrl = result.audioUrl || "";
 
       setGeneratedAudio(audioUrl);
