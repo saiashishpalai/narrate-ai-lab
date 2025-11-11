@@ -1,13 +1,13 @@
-import { useState, useRef } from "react";
-import { FileText, Upload, Type, Loader2 } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { FileText, Upload, Type, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import supabase from "@/lib/SupabaseClient";
 import { Document, Page, pdfjs } from 'react-pdf';
-import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
-import 'react-pdf/dist/esm/Page/TextLayer.css';
+import 'react-pdf/dist/Page/AnnotationLayer.css';
+import 'react-pdf/dist/Page/TextLayer.css';
 
 // Set up PDF.js worker
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
@@ -17,6 +17,7 @@ interface TextUploadProps {
   text: string;
   sessionId?: number | null;
   onPdfUpload?: (file: File, pdfUrl: string) => void;
+  onTextUploadError?: (error: string | null) => void;
 }
 
 export const TextUpload = ({
@@ -24,6 +25,7 @@ export const TextUpload = ({
   text,
   sessionId,
   onPdfUpload,
+  onTextUploadError,
 }: TextUploadProps) => {
   const [activeTab, setActiveTab] = useState<"type" | "upload">("type");
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -35,6 +37,26 @@ export const TextUpload = ({
   const [isUploading, setIsUploading] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [pendingTab, setPendingTab] = useState<"type" | "upload" | null>(null);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  
+  // PDF preview state
+  const [pdfFile, setPdfFile] = useState<string | null>(null);
+  const [numPages, setNumPages] = useState<number>(0);
+  const [pageNumber, setPageNumber] = useState<number>(1);
+
+  // Monitor internet connection
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
 
   const handleFileSelect = async (file: File) => {
@@ -49,6 +71,9 @@ export const TextUpload = ({
       // Clear any existing PDF when selecting a new file
       if (uploadedPdf) {
         setUploadedPdf(null);
+        setPdfFile(null);
+        setNumPages(0);
+        setPageNumber(1);
       }
       try {
         if (file.type === "text/plain") {
@@ -70,8 +95,16 @@ export const TextUpload = ({
             return;
           }
           
+          // Check internet connection first
+          if (!isOnline) {
+            onTextUploadError?.("No internet connection");
+            toast.error("No internet connection. Please check your network and try again.");
+            return;
+          }
+          
           // Set uploading state
           setIsUploading(true);
+          onTextUploadError?.(null); // Clear previous errors
           
           const filePath = `pdf-${Date.now()}-${file.name}`;
           
@@ -80,7 +113,14 @@ export const TextUpload = ({
             .upload(filePath, file);
           
           if (error) {
-            toast.error("Failed to upload PDF file");
+            // Check if it's a network error
+            if (error.message?.includes('fetch') || error.message?.includes('network') || !navigator.onLine) {
+              onTextUploadError?.("No internet connection");
+              toast.error("No internet connection. Please check your network and try again.");
+            } else {
+              onTextUploadError?.("Upload failed");
+              toast.error("Failed to upload PDF file");
+            }
             console.error("PDF upload error:", error);
             setIsUploading(false);
             return;
@@ -93,6 +133,7 @@ export const TextUpload = ({
           
           // Store PDF data for preview
           setUploadedPdf({ file, url: publicUrl });
+          setPdfFile(publicUrl);
           
           // Call parent callback with file and URL
           onPdfUpload(file, publicUrl);
@@ -103,7 +144,14 @@ export const TextUpload = ({
           // Stay in upload tab to show the ready state
         }
       } catch (error) {
-        toast.error("Failed to process file");
+        // Check if it's a network error
+        if (error instanceof TypeError && error.message?.includes('fetch')) {
+          onTextUploadError?.("No internet connection");
+          toast.error("No internet connection. Please check your network and try again.");
+        } else {
+          onTextUploadError?.("Upload failed");
+          toast.error("Failed to process file");
+        }
         console.error("File processing error:", error);
         setIsUploading(false);
       }
@@ -144,6 +192,20 @@ export const TextUpload = ({
     }
   };
 
+  // PDF navigation functions
+  const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
+    setNumPages(numPages);
+    setPageNumber(1);
+  };
+
+  const goToPrevPage = () => {
+    setPageNumber(prev => Math.max(prev - 1, 1));
+  };
+
+  const goToNextPage = () => {
+    setPageNumber(prev => Math.min(prev + 1, numPages));
+  };
+
   // Handle tab switching with confirmation
   const handleTabSwitch = (newTab: "type" | "upload") => {
     if (isUploading) return; // Don't allow switching during upload
@@ -168,6 +230,9 @@ export const TextUpload = ({
       if (pendingTab === "type") {
         // Switching to type, clear uploaded PDF
         setUploadedPdf(null);
+        setPdfFile(null);
+        setNumPages(0);
+        setPageNumber(1);
         if (onPdfUpload) {
           onPdfUpload(null as any, "");
         }

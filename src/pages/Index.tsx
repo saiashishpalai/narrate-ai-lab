@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { VoiceUpload } from "@/components/VoiceUpload";
 import { TextUpload } from "@/components/TextUpload";
 import { AudioPlayer } from "@/components/AudioPlayer";
@@ -9,6 +9,7 @@ import supabase from "@/lib/SupabaseClient";
 const Index = () => {
   const [voiceFile, setVoiceFile] = useState<File | null>(null);
   const [voiceUrl, setVoiceUrl] = useState<string>("");
+  const [voiceStoragePath, setVoiceStoragePath] = useState<string | null>(null);
   const [isVoiceValid, setIsVoiceValid] = useState(false);
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string>("");
@@ -16,18 +17,75 @@ const Index = () => {
   const [generatedAudio, setGeneratedAudio] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [sessionId, setSessionId] = useState<number | null>(null);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [voiceUploadError, setVoiceUploadError] = useState<string | null>(null);
+  const [textUploadError, setTextUploadError] = useState<string | null>(null);
   
   // Feature flag for new flow - set to true to test new architecture
   const USE_NEW_FLOW = true; //IMPORTANT: Set to true to test new architecture
+
+  // Monitor internet connection
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      let showedToast = false;
+
+      if (voiceUploadError === "No internet connection") {
+        setVoiceUploadError(null);
+        showedToast = true;
+      }
+
+      if (textUploadError === "No internet connection") {
+        setTextUploadError(null);
+        showedToast = true;
+      }
+
+      // If we have a file selected but upload failed due to no internet, show a retry message
+      if (!showedToast && ((voiceFile && !isVoiceValid) || (pdfFile && !storyText.trim()))) {
+        toast.info("Internet connection restored. You can try uploading again.");
+      }
+
+      if (showedToast) {
+        toast.info("Internet connection restored. You can try uploading again.");
+      }
+    };
+    const handleOffline = () => {
+      setIsOnline(false);
+      // If user goes offline while we have a file selected, update the error state
+      if (voiceFile && !isVoiceValid) {
+        setVoiceUploadError("No internet connection");
+      }
+      if (pdfFile && !storyText.trim()) {
+        setTextUploadError("No internet connection");
+      }
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [voiceFile, isVoiceValid, voiceUploadError, pdfFile, storyText, textUploadError]);
 
   // Upload voice file to Supabase Storage and store public URL
   const handleVoiceFileSelect = async (file: File | null) => {
     setVoiceFile(file);
     setVoiceUrl("");
+    setVoiceStoragePath(null);
     setSessionId(null);
     setIsVoiceValid(false); // Reset validation state
+    setVoiceUploadError(null); // Clear previous errors
 
     if (!file) return;
+
+    // Check internet connection first
+    if (!isOnline) {
+      setVoiceUploadError("No internet connection");
+      toast.error("No internet connection. Please check your network and try again.");
+      return;
+    }
 
     try {
       // FIX 1: Remove the "voices/" prefix to avoid double "voices/voices/" path
@@ -38,7 +96,14 @@ const Index = () => {
         .upload(filePath, file);
 
       if (error) {
-        toast.error("Failed to upload voice file");
+        // Check if it's a network error
+        if (error.message?.includes('fetch') || error.message?.includes('network') || !navigator.onLine) {
+          setVoiceUploadError("No internet connection");
+          toast.error("No internet connection. Please check your network and try again.");
+        } else {
+          setVoiceUploadError("Upload failed");
+          toast.error("Failed to upload voice file");
+        }
         console.error("Upload error:", error);
         return;
       }
@@ -49,6 +114,7 @@ const Index = () => {
       } = supabase.storage.from("voice-samples").getPublicUrl(filePath);
 
       setVoiceUrl(publicUrl);
+      setVoiceStoragePath(filePath);
 
       // NEW FLOW: Don't create session until user clicks Generate
       if (!USE_NEW_FLOW) {
@@ -84,14 +150,30 @@ const Index = () => {
         toast.success("Voice file uploaded successfully! Now add your text and click Generate.");
       }
     } catch (err) {
-      toast.error("Failed to upload voice file");
+      // Check if it's a network error
+      if (err instanceof TypeError && err.message?.includes('fetch')) {
+        setVoiceUploadError("No internet connection");
+        toast.error("No internet connection. Please check your network and try again.");
+      } else {
+        setVoiceUploadError("Upload failed");
+        toast.error("Failed to upload voice file");
+      }
       console.error("Upload exception:", err);
     }
   };
 
   // Handle PDF upload from TextUpload component
   const handlePdfUpload = (file: File | null, pdfUrl: string) => {
+    setTextUploadError(null); // Clear previous errors
+    
     if (file && pdfUrl) {
+      // Check internet connection first
+      if (!isOnline) {
+        setTextUploadError("No internet connection");
+        toast.error("No internet connection. Please check your network and try again.");
+        return;
+      }
+      
       setPdfFile(file);
       setPdfUrl(pdfUrl);
       toast.success("PDF uploaded successfully! Text will be extracted during generation.");
@@ -107,6 +189,9 @@ const Index = () => {
     if (storyText.length > 1500) {
       return { status: 'error', text: 'Character limit exceeded', color: 'text-red-500', dot: 'bg-red-500' };
     }
+    if (textUploadError === "No internet connection") {
+      return { status: 'error', text: 'No Internet Connection', color: 'text-red-500', dot: 'bg-red-500' };
+    }
     if (storyText.trim() || pdfFile) {
       return { status: 'ready', text: 'Ready', color: 'text-green-500', dot: 'bg-green-500' };
     }
@@ -114,8 +199,11 @@ const Index = () => {
   };
 
   const handleGenerate = async () => {
-    if (!voiceUrl || !storyText.trim()) {
-      toast.error("Please upload a voice sample and provide story text");
+    const hasStoryText = !!storyText.trim();
+    const hasPdfContent = !!pdfFile && !!pdfUrl;
+
+    if (!voiceUrl || (!hasStoryText && !hasPdfContent)) {
+      toast.error("Please upload a voice sample and provide story text or a PDF");
       return;
     }
 
@@ -134,7 +222,7 @@ const Index = () => {
           .from("sessions")
           .insert([
             {
-              voice_path: voiceFile?.name ? `${Date.now()}-${voiceFile.name}` : null,
+              voice_path: voiceStoragePath,
               pdf_path: pdfFile?.name ? `pdf-${Date.now()}-${pdfFile.name}` : null,
               story_text: storyText,
               status: "processing",
@@ -163,26 +251,25 @@ const Index = () => {
       }
 
       // Use the public URL from Supabase Storage
-      const n8nWebhookUrl =
-        import.meta.env.VITE_N8N_WEBHOOK_URL ||
-        "http://localhost:5678/webhook-test/generate-audio";
-
-      const response = await fetch(n8nWebhookUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            voiceUrl, // this is the public URL from Supabase
-            text: storyText,
-            pdfUrl: pdfUrl || null, // PDF URL for text extraction
-            sessionId: currentSessionId, // Include sessionId for both flows
-          }),
-        });
-
-      if (!response.ok) throw new Error("Failed to generate audio");
+      const response = await fetch(`/api/generate-audio`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          voiceUrl, // this is the public URL from Supabase
+          text: storyText,
+          pdfUrl: pdfUrl || null, // PDF URL for text extraction
+          sessionId: currentSessionId, // Include sessionId for both flows
+        }),
+      });
 
       const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result?.error || "Failed to generate audio");
+      }
+
       const audioUrl = result.audioUrl || "";
 
       setGeneratedAudio(audioUrl);
@@ -240,6 +327,7 @@ const Index = () => {
               text={storyText}
               sessionId={sessionId}
               onPdfUpload={handlePdfUpload}
+              onTextUploadError={setTextUploadError}
             />
           </div>
 
@@ -254,12 +342,17 @@ const Index = () => {
                 <span className={`${
                   isVoiceValid ? 'text-green-500' : voiceFile ? 'text-red-500' : 'text-muted-foreground'
                 }`}>
-                  Voice Sample {isVoiceValid ? 'Ready' : voiceFile ? 'Invalid Size' : 'Required'}
+                  {
+                    isVoiceValid ? 'Voice Sample Ready' : 
+                    voiceFile && voiceUploadError === "No internet connection" ? 'No Internet Connection' :
+                    voiceFile && voiceUploadError === "Upload failed" ? 'Upload Failed' :
+                    voiceFile ? 'Invalid Size' : 'Voice Sample Required'
+                  }
                 </span>
                 <span className="text-muted-foreground">•</span>
                 <div className={`w-2 h-2 rounded-full ${getTextStatus().dot}`}></div>
                 <span className={getTextStatus().color}>
-                  Text Content {getTextStatus().text}
+                  {textUploadError === "No internet connection" ? getTextStatus().text : `Text Content ${getTextStatus().text}`}
                 </span>
               </div>
             )}
