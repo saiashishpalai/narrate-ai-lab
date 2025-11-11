@@ -13,6 +13,7 @@ const Index = () => {
   const [isVoiceValid, setIsVoiceValid] = useState(false);
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string>("");
+  const [pdfStoragePath, setPdfStoragePath] = useState<string | null>(null);
   const [storyText, setStoryText] = useState<string>("");
   const [generatedAudio, setGeneratedAudio] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -163,10 +164,10 @@ const Index = () => {
   };
 
   // Handle PDF upload from TextUpload component
-  const handlePdfUpload = (file: File | null, pdfUrl: string) => {
+  const handlePdfUpload = (file: File | null, pdfUrl: string, storagePath: string) => {
     setTextUploadError(null); // Clear previous errors
     
-    if (file && pdfUrl) {
+    if (file && pdfUrl && storagePath) {
       // Check internet connection first
       if (!isOnline) {
         setTextUploadError("No internet connection");
@@ -176,11 +177,13 @@ const Index = () => {
       
       setPdfFile(file);
       setPdfUrl(pdfUrl);
+      setPdfStoragePath(storagePath);
       toast.success("PDF uploaded successfully! Text will be extracted during generation.");
     } else {
       // Clear PDF data when file is null
       setPdfFile(null);
       setPdfUrl("");
+      setPdfStoragePath(null);
     }
   };
 
@@ -223,7 +226,7 @@ const Index = () => {
           .insert([
             {
               voice_path: voiceStoragePath,
-              pdf_path: pdfFile?.name ? `pdf-${Date.now()}-${pdfFile.name}` : null,
+              pdf_path: pdfStoragePath, // Use the actual uploaded PDF storage path
               story_text: storyText,
               status: "processing",
             },

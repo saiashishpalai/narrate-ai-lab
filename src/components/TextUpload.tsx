@@ -16,7 +16,7 @@ interface TextUploadProps {
   onTextChange: (text: string) => void;
   text: string;
   sessionId?: number | null;
-  onPdfUpload?: (file: File, pdfUrl: string) => void;
+  onPdfUpload?: (file: File, pdfUrl: string, storagePath: string) => void;
   onTextUploadError?: (error: string | null) => void;
 }
 
@@ -135,8 +135,8 @@ export const TextUpload = ({
           setUploadedPdf({ file, url: publicUrl });
           setPdfFile(publicUrl);
           
-          // Call parent callback with file and URL
-          onPdfUpload(file, publicUrl);
+          // Call parent callback with file, URL, and storage path
+          onPdfUpload(file, publicUrl, filePath);
           
           // Clear uploading state and show success
           setIsUploading(false);
@@ -234,7 +234,7 @@ export const TextUpload = ({
         setNumPages(0);
         setPageNumber(1);
         if (onPdfUpload) {
-          onPdfUpload(null as any, "");
+          onPdfUpload(null as any, "", "");
         }
       } else {
         // Switching to upload, clear typed text
